@@ -1,0 +1,20 @@
+# 启用方式：--spring.profiles.active=local,cache-learning
+# 需本地 Redis，例如：docker run -d --name redis -p 6379:6379 redis:7
+
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 3s
+
+redisson:
+  single-server-config:
+    address: redis://localhost:6379
+
+cache-learning:
+  caffeine:
+    max-size: 500
+    expire-seconds: 60
+  redis:
+    ttl-seconds: 1800

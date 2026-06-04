@@ -1,0 +1,44 @@
+# 测试专用配置：不连真实 MCP，避免 CI/本地无网络时启动失败
+spring:
+  test:
+    mockmvc:
+      use-context-path: true
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      # Redisson 3.37 + Spring Boot 3 须用 V2（旧版 RedissonAutoConfiguration 不能写进 exclude）
+      - org.redisson.spring.starter.RedissonAutoConfigurationV2
+  datasource:
+    url: jdbc:postgresql://localhost:5432/mydb
+    username: root
+    password: 123456
+    driver-class-name: org.postgresql.Driver
+  ai:
+    dashscope:
+      api-key: sk-5a813a508d4d431b9b8831e81b07c320
+    vectorstore:
+      pgvector:
+        initialize-schema: true
+    mcp:
+      client:
+        enabled: false
+        toolcallback:
+          enabled: false
+
+search-api:
+  api-key: test-search-api-key
+
+auth:
+  enabled: false
+
+rag:
+  skip-startup-load: true
+
+# 测试日志：控制台搜 [DB-TEST] 看数据库诊断；Hikari / JDBC 细节开 DEBUG
+logging:
+  level:
+    com.wu.aiagent.db: DEBUG
+    com.zaxxer.hikari: DEBUG
+    org.springframework.jdbc.core: DEBUG
+    org.springframework.jdbc.datasource: DEBUG
+    org.apache.ibatis: DEBUG

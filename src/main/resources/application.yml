@@ -1,0 +1,81 @@
+spring:
+  application:
+    name: wu-ai-agent
+  profiles:
+    active: local
+  ai:
+    dashscope:
+      api-key: your-api-key
+      chat:
+        options:
+          model: qwen-plus
+    mcp:
+      client:
+        enabled: true
+        type: SYNC
+        request-timeout: 60s
+        # 启动时不立即握手 MCP，避免连不上时整个应用起不来（用到 MCP 接口时再初始化）
+        initialized: false
+        toolcallback:
+          enabled: true
+        streamable-http:
+          connections:
+            qwen-image-mcp:
+              url: https://dashscope.aliyuncs.com
+              endpoint: /api/v1/mcps/QwenImage/mcp
+    vectorstore:
+      pgvector:
+        index-type: HNSW
+        dimensions: 1536
+        distance-type: COSINE_DISTANCE
+        max-document-batch-size: 10000
+        initialize-schema: true
+
+rag:
+  initialize-on-empty: true
+  skip-startup-load: false
+  # 百炼 Embedding 单次最多 10 条
+  embedding-batch-size: 10
+
+server:
+  port: 8123
+  servlet:
+    context-path: /api
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: default
+      paths-to-match: /**
+      packages-to-scan: com.wu.aiagent.controller
+
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
+
+search-api:
+  api-key: your-search-api-key
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: isDeleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+auth:
+  jwt:
+    secret: wu-ai-agent-dev-secret-change-me
+    expire-hours: 168
+  enabled: true
+
+logging:
+  level:
+    org.springframework.ai: INFO

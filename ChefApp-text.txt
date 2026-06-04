@@ -1,0 +1,149 @@
+// =============================================================================
+// ChefApp 完整业务方法备份（改造持久化记忆时误删部分，此处保留原逻辑供对照）
+// 文件：src/main/java/com/wu/aiagent/app/ChefApp.java
+// 说明：构造函数已改为注入 MessageWindowChatMemory（PostgreSQL 持久化），
+//       下方方法体与删前一致，请合并回 ChefApp.java 类中。
+// =============================================================================
+
+    /**
+     * 多轮对话（内存会话记忆 → 现已改为 PostgreSQL 持久化）
+     */
+    public String doChat(String message, String chatId) {
+        ChatResponse chatResponse = chatClient
+                .prompt()
+                .user(message)
+                .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, chatId))
+                .call()
+                .chatResponse();
+        String content = chatResponse.getResult().getOutput().getText();
+        log.info("chef chat content: {}", content);
+        return content;
+    }
+
+    /**
+     * SSE 流式多轮对话
+     */
+    public Flux<String> doChatByStream(String message, String chatId) {
+        return chatClient
+                .prompt()
+                .user(message)
+                .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, chatId))
+                .stream()
+                .content();
+    }
+
+    public record MealPlanReport(String title, List<String> suggestions) {
+    }
+
+    /**
+     * 结构化输出：膳食计划报告
+     */
+    public MealPlanReport doChatWithReport(String message, String chatId) {
+        MealPlanReport report = chatClient
+                .prompt()
+                .system(SYSTEM_PROMPT + " 请根据用户需求生成膳食计划报告，标题简洁，建议列表 3~5 条。")
+                .user(message)
+                .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, chatId))
+                .call()
+                .entity(MealPlanReport.class);
+        log.info("mealPlanReport: {}", report);
+        return report;
+    }
+
+    @Resource
+    private VectorStore chefVectorStore;
+
+    @Resource
+    private QueryRewriter queryRewriter;
+
+    /**
+     * RAG 菜谱知识库问答（内存向量库）
+     */
+    public String doChatWithRag(String message, String chatId) {
+        String rewrittenMessage = queryRewriter.doQueryRewrite(message);
+        ChatResponse chatResponse = chatClient
+                .prompt()
+                .user(rewrittenMessage)
+                .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, chatId))
+                .advisors(new MyLoggerAdvisor())
+                .advisors(QuestionAnswerAdvisor.builder(chefVectorStore).build())
+                .call()
+                .chatResponse();
+        String content = chatResponse.getResult().getOutput().getText();
+        log.info("chef rag content: {}", content);
+        return content;
+    }
+
+    @Resource
+    private ToolCallback[] allTools;
+
+    /**
+     * 工具调用：联网搜索、PDF 生成等
+     */
+    public String doChatWithTools(String message, String chatId) {
+        ChatResponse chatResponse = chatClient
+                .prompt()
+                .user(message)
+                .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, chatId))
+                .advisors(new MyLoggerAdvisor())
+                .toolCallbacks(allTools)
+                .call()
+                .chatResponse();
+        String content = chatResponse.getResult().getOutput().getText();
+        log.info("chef tools content: {}", content);
+        return content;
+    }
+
+    @Autowired(required = false)
+    private ToolCallbackProvider toolCallbackProvider;
+
+    /**
+     * MCP 调用：如 QwenImage 菜品图生成
+     */
+    public String doChatWithMcp(String message, String chatId) {
+        if (toolCallbackProvider == null) {
+            return "MCP 服务未启用，请在 application.yml 中配置 spring.ai.mcp.client 并确保连接正常。";
+        }
+        ChatResponse chatResponse = chatClient
+                .prompt()
+                .user(message)
+                .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, chatId))
+                .advisors(new MyLoggerAdvisor())
+                .toolCallbacks(toolCallbackProvider.getToolCallbacks())
+                .call()
+                .chatResponse();
+        String content = chatResponse.getResult().getOutput().getText();
+        log.info("chef mcp content: {}", content);
+        return content;
+    }
+
+// =============================================================================
+// 删改前的构造函数（对比用：原为 InMemoryChatMemoryRepository）
+// =============================================================================
+//
+//    public ChefApp(@Qualifier("dashScopeChatModel") ChatModel dashscopeChatModel) {
+//        MessageWindowChatMemory chatMemory = MessageWindowChatMemory.builder()
+//                .chatMemoryRepository(new InMemoryChatMemoryRepository())
+//                .maxMessages(20)
+//                .build();
+//        this.chatClient = ChatClient.builder(dashscopeChatModel)
+//                .defaultSystem(SYSTEM_PROMPT)
+//                .defaultAdvisors(
+//                        MessageChatMemoryAdvisor.builder(chatMemory).build(),
+//                        new MyLoggerAdvisor()
+//                )
+//                .build();
+//    }
+//
+// 现用构造函数（PostgreSQL 持久化，由 ChatMemoryConfig 提供 Bean）：
+//
+//    public ChefApp(@Qualifier("dashScopeChatModel") ChatModel dashscopeChatModel,
+//                   MessageWindowChatMemory messageWindowChatMemory) {
+//        this.chatClient = ChatClient.builder(dashscopeChatModel)
+//                .defaultSystem(SYSTEM_PROMPT)
+//                .defaultAdvisors(
+//                        MessageChatMemoryAdvisor.builder(messageWindowChatMemory).build(),
+//                        new MyLoggerAdvisor()
+//                )
+//                .build();
+//    }
