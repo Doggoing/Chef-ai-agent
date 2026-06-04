@@ -1,7 +1,11 @@
 application-local.yml
+application-local.yml.example
 tmp
 target/
 .idea/
 *.iml
 node_modules/
 dist/
+
+# 仅本地保留的文档（不上传 GitHub）
+docs/
